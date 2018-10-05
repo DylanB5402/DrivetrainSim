@@ -9,7 +9,7 @@ import pathfinder as pf
 import TrajectoryUtils
 from TrajectoryFactory import TrajectoryFactory
 
-taco = Drivetrain(2.5, 0.02, 16, 0)
+taco = Drivetrain(2.5, 0.02, 28, 0)
 # taco.turn_to_angle_PID(45, 0.1, 0)
 # taco.drive_forward_PID(100, 0.1, 0)
 # taco.drive_at_heading(90, 0.01, 1000, 2)
@@ -42,7 +42,7 @@ right_switch_auto = pf.generate(
 
 right_to_right_scale_auto = pf.generate( 
                                         [ pf.Waypoint(28, 0, math.radians(90)),
-                                        pf.Waypoint(27.5, 14, math.radians(90)),
+                                        pf.Waypoint(28, 14, math.radians(90)),
                                         pf.Waypoint(25, 21, math.radians(120))],
                                         pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
                                dt=0.02, # 50WWms
@@ -50,18 +50,30 @@ right_to_right_scale_auto = pf.generate(
                                max_acceleration=2.0,
                                max_jerk=60.0)[1]
 
+test_auto = pf.generate( 
+                                        [ pf.Waypoint(28, 0, math.radians(90)),
+                                        pf.Waypoint(28, 10, math.radians(90)),
+                                        pf.Waypoint(25, 12, math.radians(0)),
+                                        pf.Waypoint(23, 10, math.radians(-90)),
+                                        pf.Waypoint(23, 6, math.radians(-90))],
+                                        pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
+                               dt=0.02, # 50WWms
+                               max_velocity= 5,
+                               max_acceleration=2.0,
+                               max_jerk=60.0)[1]
 # taco.turn_to_angle_PID(180, 0.1, 0)
 # taco.drive_forward_PID(-100, 0.1, 0)
 # taco.drive_pure_pursuit_pathfinder(right_switch_auto, 3, True)
 # print(len(right_switch_auto))
 # print(right_switch_auto[155])
-taco.drive_pure_pursuit(right_switch_auto, 5, True)
+taco.drive_pure_pursuit(test_auto, 3, True)
 # print(taco.robot_x, taco.robot_y)
 # taco.graph()
-# taco.drive_ramsete(right_switch_auto, 5, 0.1)
+# taco.set_position(17, 0)
+# taco.drive_ramsete(right_to_right_scale_auto, 0, 0)
 # pf.serialize("src/right_switch_auto.traj", right_switch_auto)
 # print(pf.deserialize("right_switch_auto.traj"))
 # traj_factory = TrajectoryFactory("paths/", 2)
 # traj_factory.add_trajectory("right_switch_auto", right_switch_auto)
-# traj_factory.add_trajectory("right_scale_auto", right_to_right_scale_auto)
+# traj_factory.add_trajectory("right_to_right_scale_auto", right_to_right_scale_auto)
 # traj_factory.save_trajectories()

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import NerdyMath
 import numpy
 from BezierCurve import  BezierCurve
+import pathfinder
 import TrajectoryUtils
 
 class Drivetrain():
@@ -234,13 +235,7 @@ class Drivetrain():
         time = self.time - start_time
         index = 0
         current_seg = trajectory[0]
-        # while ((NerdyMath.distance_formula(self.robot_x, self.robot_y, trajectory[len(trajectory) -1].x, trajectory[len(trajectory) -1].y) > 1) and (current_seg == trajectory[len(trajectory) -1])):
-        # while ((NerdyMath.distance_formula(self.robot_x, self.robot_y, trajectory[len(trajectory) -1].x, trajectory[len(trajectory) -1].y) > 0.2)):
-            # print(NerdyMath.distance_formula(self.robot_x, self.robot_y, trajectory[len(trajectory) -1].x, trajectory[len(trajectory) -1].y))
-        # while time < 14:    
         while index != (len(trajectory) - 2):
-            # print(self.robot_x, self.robot_y)
-            print(index, time)
             time = self.time - start_time
             current_seg = TrajectoryUtils.get_closer_segment_range(self.robot_x, self.robot_y, trajectory, index, 5)
             index = trajectory.index(current_seg)
@@ -250,9 +245,11 @@ class Drivetrain():
             x2 = seg_2.x
             y2 = seg_2.y      
             if x2 == x1:
-                slope = 0.0000000001
+                slope = 10000
+                # if line is a vertical straight line (slope undefined) set slope to a really big number
             else:
                 slope = (y2 - y1) / (x2 - x1)
+            # calculate intersections of circle from robot and line segment to follow
             y_int = y2 - slope * x2
             a = (1 + slope ** 2)
             b = (-2 * self.robot_x) + (2 * slope * (y_int - self.robot_y))
@@ -274,6 +271,7 @@ class Drivetrain():
                 error2 -= 360
             elif error2 <= -180:
                 error2 += 360
+            # go to the lookahead point where there's less angular erorr
             if abs(error1) <= abs(error2):
                 error = error1
                 goal_x = goal_x1
@@ -282,11 +280,12 @@ class Drivetrain():
                 error = error2
                 goal_x = goal_x2
                 goal_y = goal_y2
-                    
             x_offset = NerdyMath.distance_formula(self.robot_x, self.robot_y, goal_x, goal_y) * math.cos(math.radians(error))
+            #get x offset of looakead point relative to the robot   
             velocity = current_seg.velocity
             if x_offset > 0:
                 drive_radius = (lookahead ** 2) / (2 * x_offset)
+                # drive at the calculated radius
                 inner_vel = velocity * (drive_radius - (self.width/2))/(drive_radius + (self.width/2))
                 if going_forwards:
                     if numpy.sign(error) == -1: 
@@ -306,34 +305,36 @@ class Drivetrain():
         plt.xlabel('x')
         plt.ylabel('y')
         plt.legend(['robot position', 'path'])
+        plt.axis([-100, 100, -100, 100])
         plt.show()
 
     def drive_ramsete(self, trajectory, kB, kZeta):
+        # kB > 0
+        # 0 < kZeta < 1 
         start_time = self.time
         time = self.time - start_time
-        index = 1
+        index = 0
         current_seg = trajectory[1]
-        while time < 15:
+        while time < 20:
             # print
             time = self.time - start_time
-            current_seg = TrajectoryUtils.get_closer_segment_range(self.robot_x, self.robot_y, trajectory, index, 5)
-            index = trajectory.index(current_seg)
-            seg_2 = TrajectoryUtils.get_closer_segment(self.robot_x, self. robot_y, trajectory[index + 1], trajectory[index - 1])
+            if index > len(trajectory) -1:
+                index = len(trajectory) - 1
+            current_seg = trajectory[index]
             x1 = current_seg.x
             y1 = current_seg.y
-            desired_angular_vel = (current_seg.heading - trajectory[index -1].heading)/self.dt
+            desired_angular_vel = -(current_seg.heading - trajectory[index - 1].heading)/self.dt
             desired_vel = current_seg.velocity
             x_error = x1 - self.robot_x
             y_error = y1 - self.robot_y
-            theta_error = current_seg.heading - self.robot_angle
-            k1 = 2 * kZeta * math.sqrt(desired_angular_vel ** 2 + kB * desired_vel ** 2)
+            theta_error = pathfinder.d2r(pathfinder.boundHalfDegrees(pathfinder.r2d(current_seg.heading - self.robot_angle)))
+            k1 = 2 * kZeta * math.sqrt((desired_angular_vel ** 2) + (kB * desired_vel ** 2))
             k2 = kB * abs(desired_vel)
-            # vel = desired_vel * math.cos(theta_error) + k1 * ((x_error * math.cos(self.robot_angle)) + (y_error * math.sin(self.robot_angle)))
-            # angular_vel = desired_angular_vel + k2 * desired_vel * (math.sin(theta_error)/theta_error) * (y_error * math.cos(self.robot_angle) - x_error * math.sin(self.robot_angle)) + k1 * theta_error
-            vel = desired_vel * math.sin(theta_error) + k1 * ((x_error * math.sin(self.robot_angle)) + (y_error * math.cos(self.robot_angle)))
-            angular_vel = desired_angular_vel + k2 * desired_vel * (math.cos(theta_error)/theta_error) * (y_error * math.sin(self.robot_angle) - x_error * math.cos(self.robot_angle)) + k1 * theta_error
-            right_vel = desired_vel * (desired_angular_vel * self.width)/2
+            vel = desired_vel * math.cos(theta_error) + k1 * ((x_error * math.cos(self.robot_angle)) + (y_error * math.sin(self.robot_angle)))
+            angular_vel = desired_angular_vel + k2 * desired_vel * (math.sin(theta_error)/theta_error) * ((y_error * math.cos(self.robot_angle) - x_error * math.sin(self.robot_angle)) + k1 * theta_error)
+            right_vel = desired_vel - (desired_angular_vel * self.width)/2
             left_vel = 2 * desired_vel - right_vel
+            index += 1
             self.update(left_vel, right_vel)
         plt.plot(self.x_list, self.y_list)
         x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
@@ -342,10 +343,3 @@ class Drivetrain():
         plt.ylabel('y')
         plt.legend(['robot position', 'path'])
         plt.show()
-
-    def drive_trajectory(trajectory):
-        start_time = self.time
-        time = self.time - start_time
-        while time < 15:
-            start_time = self.time
-            time = self.time - start_time
