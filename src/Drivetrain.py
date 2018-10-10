@@ -6,6 +6,7 @@ from BezierCurve import  BezierCurve
 import pathfinder
 import TrajectoryUtils
 
+
 class Drivetrain():
 
     def __init__(self, width, dt, x_offset, y_offset):
@@ -245,19 +246,25 @@ class Drivetrain():
             x2 = seg_2.x
             y2 = seg_2.y      
             if x2 == x1:
-                slope = 10000
-                # if line is a vertical straight line (slope undefined) set slope to a really big number
+                a = 1
+                b = -2 * self.robot_y
+                c = (self.robot_y **2) - (lookahead**2) + (x1 - self.robot_x)**2
+                goal_y1 = (-b - math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
+                goal_y2 = (-b + math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
+                goal_x1 = x1
+                goal_x2 = x2
             else:
                 slope = (y2 - y1) / (x2 - x1)
+                y_int = y2 - slope * x2
+                a = (1 + slope ** 2)
+                b = (-2 * self.robot_x) + (2 * slope * (y_int - self.robot_y))
+                c = (self.robot_x ** 2) + (y_int - self.robot_y) ** 2 - lookahead ** 2
+                goal_x1 = (-b - math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
+                goal_x2 = (-b + math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
+                goal_y1 = slope * goal_x1 + y_int
+                goal_y2 = slope * goal_x2 + y_int
             # calculate intersections of circle from robot and line segment to follow
-            y_int = y2 - slope * x2
-            a = (1 + slope ** 2)
-            b = (-2 * self.robot_x) + (2 * slope * (y_int - self.robot_y))
-            c = (self.robot_x ** 2) + (y_int - self.robot_y) ** 2 - lookahead ** 2
-            goal_x1 = (-b - math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
-            goal_x2 = (-b + math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
-            goal_y1 = slope * goal_x1 + y_int
-            goal_y2 = slope * goal_x2 + y_int
+            
             angle = -(360 - self.robot_angle_deg) % 360
             target_angle1 = math.degrees(math.atan2(goal_x1 - self.robot_x, goal_y1 - self.robot_y))
             error1 = target_angle1 - angle
@@ -299,6 +306,7 @@ class Drivetrain():
                         self.update(-velocity, -inner_vel)
             elif x_offset == 0:
                 self.update(velocity, velocity)
+                print("taco")
         plt.plot(self.x_list, self.y_list)
         x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
         plt.plot(x_list, y_list)
@@ -343,3 +351,6 @@ class Drivetrain():
         plt.ylabel('y')
         plt.legend(['robot position', 'path'])
         plt.show()
+
+    # def drive_trajectory(trajectory):
+
