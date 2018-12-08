@@ -5,11 +5,12 @@ from BezierCurve import BezierCurve
 # from NerdyTrajectory import NerdyTrajectory
 # from TestTrajectory import TestTrajectory
 from Drivetrain import Drivetrain
+# import Drivetrain
 import pathfinder as pf
 import TrajectoryUtils
 from TrajectoryFactory import TrajectoryFactory
 
-drivetrain = Drivetrain(2.5, 0.02, 28, 0)
+drivetrain = Drivetrain(2.5, 0.02, 0, 0)
 # drivetrain.turn_to_angle_PID(45, 0.1, 0)
 # drivetrain.drive_forward_PID(100, 0.1, 0)
 # drivetrain.drive_at_heading(90, 0.01, 1000, 2)
@@ -32,48 +33,54 @@ drivetrain = Drivetrain(2.5, 0.02, 28, 0)
 
 
 right_switch_auto = pf.generate( 
-                                [pf.Waypoint(16, 0, math.radians(90)),
-                                pf.Waypoint(21.5, 10, math.radians(90)) ], 
+                                [pf.Waypoint(0, 0, math.radians(0)),
+                                pf.Waypoint(5, 5, math.radians(0)) ], 
+
+                                pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
+                               dt=0.02, # 50WWms
+                               max_velocity=5,
+                               max_acceleration=2.0,
+                               max_jerk=60.0)[1]
+
+backwards_auto = pf.generate( 
+                                [pf.Waypoint(0, 0, math.radians(0)),
+                                pf.Waypoint(-5, 5, math.radians(0)) ], 
+
+                                pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
+                               dt=0.02, # 50WWms
+                               max_velocity=5,
+                               max_acceleration=2.0,
+                               max_jerk=60.0)[1]
+
+test_auto_2 = pf.generate( 
+                                [pf.Waypoint(0, 0, math.radians(0)),
+                                pf.Waypoint(10, 2, math.radians(45)) ], 
                                 pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
                                dt=0.05, # 50WWms
                                max_velocity=1.7,
                                max_acceleration=2.0,
                                max_jerk=60.0)[1]
 
-right_to_right_scale_auto = pf.generate( 
-                                        [ pf.Waypoint(28, 0, math.radians(90)),
-                                        pf.Waypoint(28, 14, math.radians(90)),
-                                        pf.Waypoint(25, 21, math.radians(120))],
-                                        pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
-                               dt=0.02, # 50WWms
-                               max_velocity= 5,
-                               max_acceleration=2.0,
-                               max_jerk=60.0)[1]
 
-test_auto = pf.generate( 
-                                        [ pf.Waypoint(28, 0, math.radians(90)),
-                                        pf.Waypoint(28, 10, math.radians(90)),
-                                        pf.Waypoint(25, 12, math.radians(0)),
-                                        pf.Waypoint(23, 10, math.radians(-90)),
-                                        pf.Waypoint(23, 6, math.radians(-90))],
-                                        pf.FIT_HERMITE_CUBIC, pf.SAMPLES_HIGH,
-                               dt=0.02, # 50WWms
-                               max_velocity= 5,
-                               max_acceleration=2.0,
-                               max_jerk=60.0)[1]
-# drivetrain.turn_to_angle_PID(180, 0.1, 0)
-# drivetrain.drive_forward_PID(-100, 0.1, 0)
+# drivetrain.turn_to_angle_PID(135, 0.1, 0)
+# drivetrain.drive_forward_PID(100, 0.1, 0)
 # drivetrain.drive_pure_pursuit_pathfinder(right_switch_auto, 3, True)
 # print(len(right_switch_auto))
 # print(right_switch_auto[155])
-drivetrain.drive_pure_pursuit(test_auto, 3, True)
+# drivetrain.drive_pure_pursuit(right_switch_auto, 2, 1, True)
+# drivetrain.drive_pure_pursuit(test_auto_2, 2, True)
 # print(drivetrain.robot_x, drivetrain.robot_y)
 # drivetrain.graph()
 # drivetrain.set_position(17, 0)
-# drivetrain.drive_ramsete(right_to_right_scale_auto, 0, 0)
+
+# drivetrain.drive_ramsete(right_switch_auto, 0, 0)
+drivetrain.drive_pure_pursuit_nerd(backwards_auto, 3, False, 0.5, 0)
 # pf.serialize("src/right_switch_auto.traj", right_switch_auto)
 # print(pf.deserialize("right_switch_auto.traj"))
 # traj_factory = TrajectoryFactory("paths/", 2)
 # traj_factory.add_trajectory("right_switch_auto", right_switch_auto)
 # traj_factory.add_trajectory("right_to_right_scale_auto", right_to_right_scale_auto)
 # traj_factory.save_trajectories()
+# print(test_auto[0].heading)
+# for seg in test_auto:
+#     print(Drivetrain.navx_to_pf(math.degrees(seg.heading)))

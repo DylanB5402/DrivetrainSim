@@ -1,6 +1,4 @@
-import math
-import NerdyMath
-import matplotlib.pyplot as plt
+
 '''Bezier Curve without stuff for craig reynolds path following'''
 class BezierCurve:
 

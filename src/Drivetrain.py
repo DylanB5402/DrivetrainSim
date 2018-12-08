@@ -5,6 +5,8 @@ import numpy
 from BezierCurve import  BezierCurve
 import pathfinder
 import TrajectoryUtils
+from pathfinder import modifiers
+
 
 
 class Drivetrain():
@@ -33,15 +35,15 @@ class Drivetrain():
         self.left_vel = left_vel
         self.right_vel = right_vel
         self.linear_vel = (left_vel + right_vel)/2
-        self.angular_vel = (left_vel - right_vel)/self.width
+        self.angular_vel = -(left_vel - right_vel)/self.width
         delta_pos = self.linear_vel * self.dt
         delta_theta = self.angular_vel * self.dt
         self.robot_pos += delta_pos
         self.robot_angle += delta_theta
         self.right_pos += self.right_vel * self.dt
         self.left_pos += self.left_vel * self.dt
-        self.robot_x += delta_pos * math.sin(self.robot_angle)
-        self.robot_y += delta_pos * math.cos(self.robot_angle)
+        self.robot_x += delta_pos * math.cos(self.robot_angle)
+        self.robot_y += delta_pos * math.sin(self.robot_angle)
         self.x_list.append(self.robot_x)
         self.y_list.append(self.robot_y)
         self.robot_angle_deg = math.degrees(self.robot_angle)
@@ -69,22 +71,22 @@ class Drivetrain():
             prev_error = error
 
     def turn_to_angle_PID(self, target, kP, kD):
-        angle = -(360 - self.robot_angle_deg) % 360
-        error = target - angle
-        if error >= 180:
-            error -= 360
-        if error <= -180:
-            error += 360
+        # angle = -(360 - self.robot_angle_deg) % 360
+        error = target - self.robot_angle_deg
+        # if error >= 180:
+        #     error -= 360
+        # if error <= -180:
+        #     error += 360
         prev_error = error
         while abs(error) > 0.000002:
-            angle = -(360 - self.robot_angle_deg) % 360
-            error = target - angle
-            if error >= 180:
-                error -= 360
-            elif error <= -180:
-                error += 360
+            # angle = -(360 - self.robot_angle_deg) % 360
+            error = pathfinder.boundHalfDegrees(target - self.robot_angle_deg)
+            # if error >= 180:
+            #     error -= 360
+            # elif error <= -180:
+            #     error += 360
             velocity = error * kP + ((error - prev_error) / self.dt) * kD
-            self.update(velocity, -velocity)
+            self.update(-velocity, velocity)
             prev_error = error
 
 
@@ -223,6 +225,7 @@ class Drivetrain():
             last_time = time
             # print(t, goal_x, goal_y)
             # print(self.robot_x, self.robot_y)
+        # print("taco", angular)
         plt.plot(self.x_list, self.y_list)
         plt.plot(path.x_list, path.y_list)
         plt.xlabel('x')
@@ -231,7 +234,7 @@ class Drivetrain():
         plt.legend(['robot position', 'path ' + str(kP) + ',' + str(kD)])
         plt.show()
 
-    def drive_pure_pursuit(self, trajectory, lookahead, going_forwards):
+    def drive_pure_pursuit(self, trajectory, lookahead, kP, going_forwards):
         start_time = self.time
         time = self.time - start_time
         index = 0
@@ -292,6 +295,7 @@ class Drivetrain():
             velocity = current_seg.velocity
             if x_offset > 0:
                 drive_radius = (lookahead ** 2) / (2 * x_offset)
+                # velocity = kP * velocity / drive_radius
                 # drive at the calculated radius
                 inner_vel = velocity * (drive_radius - (self.width/2))/(drive_radius + (self.width/2))
                 if going_forwards:
@@ -307,6 +311,8 @@ class Drivetrain():
             elif x_offset == 0:
                 self.update(velocity, velocity)
                 print("taco")
+            # print(self.robot_angle_deg)
+        print(time)
         plt.plot(self.x_list, self.y_list)
         x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
         plt.plot(x_list, y_list)
@@ -316,34 +322,117 @@ class Drivetrain():
         plt.axis([-100, 100, -100, 100])
         plt.show()
 
+    def drive_pure_pursuit_poof(self, trajectory, lookahead, going_forwards):
+            start_time = self.time
+            time = self.time - start_time
+            robot_index = 0
+            index = 0
+            current_seg = trajectory[0]
+            vel_list = []
+            time_list = []
+            des_vel_list = []
+            while time < 10.7:
+            # while current_seg != trajectory[len(trajectory) - 2]:
+                time = self.time - start_time
+                current_seg = TrajectoryUtils.get_closer_segment_range(self.robot_x, self.robot_y, trajectory, robot_index, 5)
+                robot_index = trajectory.index(current_seg)
+                index = trajectory.index(current_seg) + lookahead
+                if index > len(trajectory) - 1:
+                    index = len(trajectory) - 1
+                seg_2 = trajectory[index]
+                goal_x = seg_2.x
+                goal_y = seg_2.y
+                angle = -(360 - self.robot_angle_deg) % 360
+                target_angle = math.degrees(math.atan2(goal_x - self.robot_x, goal_y - self.robot_y))
+                error = target_angle - angle
+                lookahead_dist = NerdyMath.distance_formula(self.robot_x, self.robot_y, goal_x, goal_y)
+                x_offset = NerdyMath.distance_formula(self.robot_x, self.robot_y, goal_x, goal_y) * math.cos(math.radians(error))
+                #get x offset of looakead point relative to the robot   
+                # print(math.cos(math.radians(error)))
+                velocity = current_seg.velocity
+                if abs(x_offset) > 0 and index != len(trajectory) - 1:
+                # if abs(x_offset) > 0:
+                    drive_radius = abs((lookahead_dist ** 2) / (2 * x_offset))
+                    # drive at the calculated radius
+                    # inner_vel = velocity * (drive_radius - (self.width/2))/(drive_radius + (self.width/2))
+                   
+                    vel_ratio = (drive_radius + (self.width/2))/(drive_radius - (self.width/2))
+                    inner_vel = 2 * velocity / (vel_ratio + 1)
+                    velocity = vel_ratio * inner_vel
+                    if going_forwards:
+                        if numpy.sign(x_offset) == -1: 
+                            self.update(inner_vel, velocity)
+                        else:
+                            self.update(velocity, inner_vel)
+                    else:
+                        if numpy.sign(error) == 1: 
+                            self.update(-inner_vel, -velocity)
+                        else:
+                            self.update(-velocity, -inner_vel)
+                else:
+                    self.update(velocity, velocity)
+                    # print("taco")
+                vel_list.append(self.left_vel)
+                time_list.append(self.time)
+                des_vel_list.append(self.right_vel)
+                # print(self.linear_vel, velocity)
+                # print("taco", error)
+                # print(self.linear_vel, current_seg.velocity)
+                print(velocity, inner_vel, self.linear_vel)
+                print(drive_radius)
+            plt.plot(self.x_list, self.y_list)
+            x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
+            plt.plot(x_list, y_list)
+            plt.xlabel('x')
+            plt.ylabel('y')
+            plt.legend(['robot position', 'path'])
+            plt.axis([-100, 100, -100, 100])
+            plt.show()
+
+            plt.plot(time_list, vel_list)
+            plt.plot(time_list, des_vel_list)
+            plt.xlabel('time')
+            plt.ylabel('vel')
+            plt.legend(['velocity', 'desired velocity'])
+            plt.show()
+            
     def drive_ramsete(self, trajectory, kB, kZeta):
         # kB > 0
         # 0 < kZeta < 1 
         start_time = self.time
         time = self.time - start_time
         index = 0
-        current_seg = trajectory[1]
-        while time < 20:
-            # print
+        current_seg = trajectory[0]
+        while time < 5:
+            if self.robot_pos > current_seg.position:
+                index += 1
             time = self.time - start_time
             if index > len(trajectory) -1:
                 index = len(trajectory) - 1
             current_seg = trajectory[index]
             x1 = current_seg.x
             y1 = current_seg.y
-            desired_angular_vel = -(current_seg.heading - trajectory[index - 1].heading)/self.dt
-            desired_vel = current_seg.velocity
             x_error = x1 - self.robot_x
             y_error = y1 - self.robot_y
-            theta_error = pathfinder.d2r(pathfinder.boundHalfDegrees(pathfinder.r2d(current_seg.heading - self.robot_angle)))
+            robot_angle = pathfinder.d2r(navx_to_pf(pathfinder.boundHalfDegrees(self.robot_angle)))
+            desired_heading = trajectory[index].heading
+            print(index)
+            print("desired angle", desired_heading)
+            print("actual", robot_angle)
+            print("unfiltered", self.robot_angle_deg)
+            desired_angular_vel = (desired_heading - trajectory[index - 1].heading)/self.dt
+            desired_vel = current_seg.velocity
+
+            theta_error = desired_heading - robot_angle
             k1 = 2 * kZeta * math.sqrt((desired_angular_vel ** 2) + (kB * desired_vel ** 2))
-            k2 = kB * abs(desired_vel)
-            vel = desired_vel * math.cos(theta_error) + k1 * ((x_error * math.cos(self.robot_angle)) + (y_error * math.sin(self.robot_angle)))
-            angular_vel = desired_angular_vel + k2 * desired_vel * (math.sin(theta_error)/theta_error) * ((y_error * math.cos(self.robot_angle) - x_error * math.sin(self.robot_angle)) + k1 * theta_error)
-            right_vel = desired_vel - (desired_angular_vel * self.width)/2
-            left_vel = 2 * desired_vel - right_vel
-            index += 1
+            k2 = kB 
+            vel = desired_vel * math.cos(theta_error) + k1 * ((x_error * math.cos(robot_angle)) + (y_error * math.sin(robot_angle)))
+            angular_vel = desired_angular_vel + k2 * desired_vel * (math.sin(theta_error)/theta_error) * (y_error * math.cos(robot_angle) - x_error * math.sin(robot_angle)) + (k1 * theta_error)
+            left_vel = (2* vel - (angular_vel * self.width))/2
+            right_vel = 2 * vel - left_vel
+            # self.update(right_vel, left_vel)
             self.update(left_vel, right_vel)
+            
         plt.plot(self.x_list, self.y_list)
         x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
         plt.plot(x_list, y_list)
@@ -351,6 +440,65 @@ class Drivetrain():
         plt.ylabel('y')
         plt.legend(['robot position', 'path'])
         plt.show()
+    
+    def drive_pure_pursuit_nerd(self, trajectory, lookahead, going_forwards, kP, kD):
+        start_time = self.time
+        time = self.time - start_time
+        robot_index = 0
+        index = 0
+        current_seg = trajectory[0]
+        last_error = 0
+        vel_list = []
+        time_list = []
+        des_vel_list = []
+        while index != len(trajectory) - 1:
+        # while time < 40:
+            time = self.time - start_time
+            current_seg = TrajectoryUtils.get_closer_segment_range(self.robot_x, self.robot_y, trajectory, robot_index, 5)
+            robot_index = trajectory.index(current_seg)
+            index = trajectory.index(current_seg) + lookahead
+            if index > len(trajectory) - 1:
+                index = len(trajectory) - 1
+            seg_2 = trajectory[index]
+            # goal_x = seg_2.x
+            # goal_y = seg_2.y
+            # angle = -(360 - self.robot_angle_deg) % 360
+            # target_angle = math.degrees(math.atan2(goal_x - self.robot_x, goal_y - self.robot_y))
+            target_angle = math.degrees(seg_2.heading)
 
-    # def drive_trajectory(trajectory):
+            # current_angle = navx_to_pf(self.robot_angle_deg)
+            # print(target_angle, current_angle)
+            velocity = current_seg.velocity
+            angle = self.robot_angle_deg
+            if not going_forwards:
+                velocity = -velocity
+                angle += 180
+            error = pathfinder.boundHalfDegrees(target_angle - angle)
+            turn = error * kP + (error - last_error)/self.dt * kD
+            self.update(velocity - turn, velocity + turn)
+            last_error = error
+            # print(index)
+            vel_list.append(self.left_vel)
+            time_list.append(self.time)
+            des_vel_list.append(self.right_vel)
+        plt.plot(self.x_list, self.y_list)
+        x_list, y_list = TrajectoryUtils.get_x_y_lists(trajectory)
+        plt.plot(x_list, y_list)
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.legend(['robot position', 'path'])
+        plt.axis([-100, 100, -100, 100])
+        plt.show()
+        # plt.plot(time_list, vel_list)
+        # plt.plot(time_list, des_vel_list)
+        # plt.xlabel('time')
+        # plt.ylabel('vel')
+        # plt.legend(['velocity', 'desired velocity'])
+        # plt.show()
+
+def navx_to_pf(a):
+    # a = pathfinder.r2d(a)
+    return (-(a +90) % 360) - 180
+
+# print(navx_to_pf(0))
 
